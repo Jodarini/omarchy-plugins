@@ -13,6 +13,10 @@ chat window, or editor that needs it.
 The bar button stays a plain icon — no badge, no color change — and the open
 list is marked by the bar's accent indicator instead.
 
+Screenshots below are from the upstream project. This clone tweaks the
+styling, so yours will differ slightly: no badge, gray row selection, filter
+chips that switch instantly, and a shorter window with keyboard hints.
+
 | Tokyo Night | Catppuccin Latte |
 |---|---|
 | ![The downloads popout on a dark theme](screenshots/panel.png) | ![The same popout on a light theme](screenshots/light.png) |
@@ -71,9 +75,13 @@ o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jankeesvw.downloads
 |---|---|
 | Click the bar button | open and close the list |
 | Right-click the bar button | open the folder in your file manager |
+| Click a row | select it |
 | Drag a row | hand the file to whatever is under the cursor |
 | Double-click a row | open the file |
 | `Last N min` / `All` | show only what just arrived, or the whole folder |
+| `j` / `k` or arrow keys | move the selection down / up |
+| `Enter` | open the selected file |
+| `H` / `L` | switch between the two filters |
 | `Esc` | close |
 
 ## Settings
@@ -113,9 +121,9 @@ omarchy plugin remove jankeesvw.downloads
 ```
 
 **Nothing is left behind.** This plugin writes no cache, no config, and no
-state of its own: it reads the download folder through Qt's folder model and
-keeps everything in memory. There is no directory to clean up and nothing about
-your files is stored anywhere.
+state of its own: it reads the download folder through Qt's folder model (or
+the local helper for very large folders) and keeps everything in memory. There
+is no directory to clean up and nothing about your files is stored anywhere.
 
 Two things outside the plugin do survive, both put there by you:
 
@@ -125,8 +133,11 @@ Two things outside the plugin do survive, both put there by you:
 
 ## Privacy
 
-Filenames never leave your machine. There is no network access, no telemetry,
-and no helper script — the plugin is QML that reads a directory listing.
+Filenames never leave your machine. There is no network access and no
+telemetry. Everything runs locally: the plugin is QML that reads a directory
+listing, with one local helper script (`bin/downloads`) that only very large
+folders (more than 2000 entries) fall back to. The helper reads the same local
+directory and nothing else, and exits when it is done.
 Filenames are rendered as `Text.PlainText` throughout, so a file named to look
 like markup cannot make the shell fetch a remote image.
 
