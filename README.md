@@ -1,11 +1,17 @@
-# Downloads
+# Downloadini
+
+> A customized clone of [omarchy-downloads](https://github.com/jankeesvw/omarchy-downloads)
+> by [Jankees](https://github.com/jankeesvw) (MIT). All credit for the original
+> plugin goes there — this repo only carries personal tweaks on top:
+> foreground-only bar icon (no badge), keyboard navigation, instant filter
+> chips, subtler dividers, and a shorter window.
 
 What just landed in your download folder, one click from the Omarchy bar —
 and every row is a drag handle, so a file goes straight into the upload field,
 chat window, or editor that needs it.
 
-The bar button carries a badge counting the files that arrived in the last few
-minutes, so a finished download is visible without opening anything.
+The bar button stays a plain icon — no badge, no color change — and the open
+list is marked by the bar's accent indicator instead.
 
 | Tokyo Night | Catppuccin Latte |
 |---|---|
@@ -28,7 +34,7 @@ popout anyway.
 ## Installing
 
 ```bash
-omarchy plugin add https://github.com/jankeesvw/omarchy-downloads
+omarchy plugin add https://github.com/Jodarini/Downloadini
 omarchy plugin enable jankeesvw.downloads
 omarchy bar move jankeesvw.downloads --section right
 ```
@@ -76,7 +82,7 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `freshMinutes` | `5` | How recent a file counts as "just arrived" — drives the badge, the accent, and the first filter |
+| `freshMinutes` | `5` | How recent a file counts as "just arrived" — drives the accent dot and the first filter |
 | `folder` | XDG download dir | Watch a different folder, as a plain path |
 
 ```json
