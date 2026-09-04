@@ -31,6 +31,9 @@ Item {
   property var store: null
   // { name, url, path, size, modified, fresh }
   property var file: ({})
+  property bool selected: false
+
+  signal activated()
 
   readonly property bool dragging: store !== null && !!file && store.draggingUrl === file.url
   readonly property bool fresh: !!(file && file.fresh === true)
@@ -69,9 +72,9 @@ Item {
     radius: Style.space(4)
     color: row.dragging
       ? Util.alpha(Color.accent, 0.22)
-      : (mouse.containsMouse ? Util.alpha(Color.foreground, 0.10) : "transparent")
-    border.width: row.dragging ? Style.spacing.hairline : 0
-    border.color: Color.accent
+      : (row.selected
+          ? Style.selectedFill
+          : (mouse.containsMouse ? Util.alpha(Color.foreground, 0.10) : "transparent"))
   }
 
   // A RowLayout rather than a Row: the name has to take whatever is left
@@ -101,7 +104,7 @@ Item {
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.icon
       renderType: Text.NativeRendering
-      color: row.fresh ? Color.accent : Color.muted
+      color: row.selected ? Color.accent : (row.fresh ? Color.accent : Color.muted)
     }
 
     // The filename is chosen by whoever made the file, so PlainText, always.
@@ -141,11 +144,18 @@ Item {
     cursorShape: mouse.drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     drag.target: row
     drag.threshold: Style.space(6)
+    property bool draggedThisPress: false
+
+    onPressAndHold: mouse.draggedThisPress = false
+    onReleased: function(mouse) {
+      if (mouse.drag.active) mouse.draggedThisPress = true
+    }
 
     // Grab a picture of the row on press, so the drag carries something you
     // can recognise. Asynchronous, but press comes well before the drag
     // threshold; if it is not ready the drag simply has no image.
     onPressed: {
+      mouse.draggedThisPress = false
       row.grabToImage(function(result) {
         if (result) row.Drag.imageSource = result.url
       })
@@ -160,6 +170,10 @@ Item {
     // named `; rm -rf ~` would then be a command. The array form execs
     // directly, and the leading-slash check keeps a name that starts with a
     // dash from being read as an option.
+    onClicked: function(mouse) {
+      if (mouse.button === Qt.LeftButton && !mouse.draggedThisPress) row.activated()
+    }
+
     onDoubleClicked: {
       var target = String(row.file.path || "")
       if (target.length > 1 && target.charAt(0) === "/")
