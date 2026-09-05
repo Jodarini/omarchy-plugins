@@ -50,6 +50,11 @@ Singleton {
   property double now: Date.now()
   property string draggingUrl: ""
   property bool open: false
+  // The panel copy that currently owns the open window. Two monitors mean
+  // two copies of the bar widget sharing this one store; only the owner may
+  // hide the window or hand the popout around, or the copies start closing
+  // each other.
+  property var owner: null
   property int selectedIndex: -1
 
   readonly property int maxRows: 200
