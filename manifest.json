@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "jankeesvw.downloads",
+  "id": "jodarini.downloads",
   "name": "Downloads",
   "version": "1.0.0",
-  "author": "Jankees",
+  "author": "Jodarini",
   "description": "Recent downloads in the bar, in a window you can drag files out of",
-  "homepage": "https://github.com/jankeesvw/omarchy-downloads",
+  "homepage": "https://github.com/Jodarini/Downloadini",
   "license": "MIT",
   "kinds": [
     "bar-widget"

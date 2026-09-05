@@ -39,8 +39,8 @@ popout anyway.
 
 ```bash
 omarchy plugin add https://github.com/Jodarini/Downloadini
-omarchy plugin enable jankeesvw.downloads
-omarchy bar move jankeesvw.downloads --section right
+omarchy plugin enable jodarini.downloads
+omarchy bar move jodarini.downloads --section right
 ```
 
 ### Make it behave like a popout
@@ -66,7 +66,7 @@ is every window the shell owns.
 ### A key for it
 
 ```lua
-o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jankeesvw.downloads")
+o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jodarini.downloads")
 ```
 
 ## Using it
@@ -94,7 +94,7 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 | `folder` | XDG download dir | Watch a different folder, as a plain path |
 
 ```json
-{ "id": "jankeesvw.downloads", "freshMinutes": 10 }
+{ "id": "jodarini.downloads", "freshMinutes": 10 }
 ```
 
 ## What it does not do
@@ -117,7 +117,7 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 ## Removing it
 
 ```bash
-omarchy plugin remove jankeesvw.downloads
+omarchy plugin remove jodarini.downloads
 ```
 
 **Nothing is left behind.** This plugin writes no cache, no config, and no

@@ -7,8 +7,8 @@ import qs.Ui
 Panel {
   id: root
 
-  moduleName: "jankeesvw.downloads"
-  ipcTarget: "jankeesvw.downloads"
+  moduleName: "jodarini.downloads"
+  ipcTarget: "jodarini.downloads"
 
   readonly property color foreground: bar ? bar.barForeground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
