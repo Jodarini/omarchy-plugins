@@ -35,9 +35,6 @@ Panel {
 
   onOpenedChanged: {
     if (root.opened) {
-      // Claim the store before showing: if another monitor's copy held the
-      // popout, the bar closes it when we request ours, and its close must
-      // not hide the window we are opening.
       DownloadsStore.owner = root
       DownloadsStore.show()
       if (bar && typeof bar.requestPopout === "function") bar.requestPopout(root)
@@ -46,20 +43,18 @@ Panel {
       DownloadsStore.hide()
       if (bar && typeof bar.releasePopout === "function") bar.releasePopout(root)
     } else if (bar && typeof bar.releasePopout === "function") {
-      // Closed because another copy took the popout. Stand down quietly.
       bar.releasePopout(root)
     }
   }
 
   Connections {
     target: DownloadsStore
-    // Only the close direction is mirrored, and only by the copy that is
-    // actually open: the store never opens without a copy opening first, but
-    // it can close itself (Esc), and then the owning copy has to release the
-    // popout. Reacting to opens here is what made two copies fight over one
-    // popout after the shell update.
     function onOpenChanged() {
-      if (!DownloadsStore.open && root.opened) root.close()
+      // Defer to avoid binding loops during shell init: the bar reads
+      // opened → opens a panel → store changes → signal fires mid-eval.
+      Qt.callLater(function() {
+        if (!DownloadsStore.open && root.opened) root.close()
+      })
     }
   }
 

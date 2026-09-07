@@ -32,12 +32,12 @@ Singleton {
   readonly property string iconFolder: "\uF07C"
   readonly property string iconFile: "\uF15B"
   readonly property string iconImage: "\uF1C5"
-  readonly property string iconPdf: "\uF1C1"
-  readonly property string iconArchive: "\uF1C6"
-  readonly property string iconAudio: "\uF1C7"
-  readonly property string iconVideo: "\uF1C8"
-  readonly property string iconCode: "\uF1C9"
-  readonly property string iconText: "\uF0F6"
+  readonly property string iconPdf: "\uF1C0"
+  readonly property string iconArchive: "\uF187"
+  readonly property string iconAudio: "\uF001"
+  readonly property string iconVideo: "\uF03D"
+  readonly property string iconCode: "\uF120"
+  readonly property string iconText: "\uF0CA"
 
   property string fontFamily: Style.font.family
 
