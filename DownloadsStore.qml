@@ -32,12 +32,14 @@ Singleton {
   readonly property string iconFolder: "\uF07C"
   readonly property string iconFile: "\uF15B"
   readonly property string iconImage: "\uF1C5"
-  readonly property string iconPdf: "\uF1C0"
-  readonly property string iconArchive: "\uF187"
+  readonly property string iconPdf: "\uF1C1"
+  readonly property string iconArchive: "\uF1C6"
   readonly property string iconAudio: "\uF001"
   readonly property string iconVideo: "\uF03D"
   readonly property string iconCode: "\uF120"
-  readonly property string iconText: "\uF0CA"
+  readonly property string iconWord: "\uF15C"
+  readonly property string iconExcel: "\uF1C3"
+  readonly property string iconPowerpoint: "\uF1C4"
 
   property string fontFamily: Style.font.family
 
@@ -94,7 +96,9 @@ Singleton {
     if (/^(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/.test(s)) return root.iconAudio
     if (/^(mp4|mkv|mov|avi|webm|m4v|mpg|mpeg|wmv)$/.test(s)) return root.iconVideo
     if (/^(js|ts|json|py|rb|sh|c|h|cpp|rs|go|java|qml|html|css|xml|yml|yaml|toml)$/.test(s)) return root.iconCode
-    if (/^(txt|md|csv|log|rtf|doc|docx|odt|xls|xlsx|ods|ppt|pptx|odp|epub)$/.test(s)) return root.iconText
+    if (/^(doc|docx|odt|rtf)$/.test(s)) return root.iconWord
+    if (/^(xls|xlsx|ods|csv)$/.test(s)) return root.iconExcel
+    if (/^(ppt|pptx|odp)$/.test(s)) return root.iconPowerpoint
     return root.iconFile
   }
 
