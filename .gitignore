@@ -1,0 +1,8 @@
+# This folder is also where `omarchy plugin add` drops third-party plugins.
+# Ignore everything at the top level, then opt in what this repo owns, so
+# those clones never get committed by `omarchy-plugins push`.
+/*
+!/.gitignore
+!/.sync/
+!/README.md
+!/jodarini.*/

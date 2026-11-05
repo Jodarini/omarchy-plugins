@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Jodarini",
   "description": "Recent downloads in the bar, in a window you can drag files out of",
-  "homepage": "https://github.com/Jodarini/Downloadini",
+  "homepage": "https://github.com/Jodarini/omarchy-plugins/tree/main/jodarini.downloads",
   "license": "MIT",
   "kinds": [
     "bar-widget"
