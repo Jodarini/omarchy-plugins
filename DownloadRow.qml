@@ -32,11 +32,21 @@ Item {
   // { name, url, path, size, modified, fresh }
   property var file: ({})
   property bool selected: false
+  // The keyboard cursor. Outlined only when it says something the selection
+  // does not, i.e. anything but a plain one-row selection of this row.
+  property bool current: false
 
-  signal activated()
+  signal rowPressed(int modifiers)
+  signal rowClicked(int modifiers)
 
-  readonly property bool dragging: store !== null && !!file && store.draggingUrl === file.url
+  readonly property bool dragging: !!(store && file && store.draggingPaths[file.path])
   readonly property bool fresh: !!(file && file.fresh === true)
+
+  // Dragging a selected row takes the whole selection along; any other row
+  // goes alone. A plain press has already made the pressed row the
+  // selection, so going alone only happens on a Ctrl or Shift press.
+  readonly property var dragFiles: (store && selected) ? store.selectedFiles() : [file]
+  readonly property var dragUrls: dragFiles.map(function(f) { return String(f.url || "") })
 
   implicitHeight: Style.space(34)
   height: implicitHeight
@@ -61,11 +71,17 @@ Item {
   Drag.dragType: Drag.Automatic
   Drag.supportedActions: Qt.CopyAction
   Drag.mimeData: ({
-    "text/uri-list": String(row.file.url || "") + "\r\n",
-    "text/plain": String(row.file.url || "")
+    "text/uri-list": row.dragUrls.join("\r\n") + "\r\n",
+    "text/plain": row.dragUrls.join("\n")
   })
-  Drag.onDragStarted: if (row.store) row.store.draggingUrl = String(row.file.url || "")
-  Drag.onDragFinished: if (row.store) row.store.draggingUrl = ""
+  Drag.onDragStarted: {
+    mouse.draggedThisPress = true
+    if (!row.store) return
+    var paths = ({})
+    for (var i = 0; i < row.dragFiles.length; i++) paths[row.dragFiles[i].path] = true
+    row.store.draggingPaths = paths
+  }
+  Drag.onDragFinished: if (row.store) row.store.draggingPaths = ({})
 
   Rectangle {
     anchors.fill: parent
@@ -75,6 +91,9 @@ Item {
       : (row.selected
           ? Style.selectedFill
           : (mouse.containsMouse ? Util.alpha(Color.foreground, 0.10) : "transparent"))
+    border.width: row.current && !(row.selected && row.store && row.store.selectionCount === 1)
+      ? Style.spacing.hairline : 0
+    border.color: Util.alpha(Color.foreground, 0.35)
   }
 
   // A RowLayout rather than a Row: the name has to take whatever is left
@@ -144,18 +163,16 @@ Item {
     cursorShape: mouse.drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     drag.target: row
     drag.threshold: Style.space(6)
+    // Set from Drag.onDragStarted, so a press that turned into a drag is not
+    // also taken as a click that collapses the selection.
     property bool draggedThisPress: false
-
-    onPressAndHold: mouse.draggedThisPress = false
-    onReleased: function(mouse) {
-      if (mouse.drag.active) mouse.draggedThisPress = true
-    }
 
     // Grab a picture of the row on press, so the drag carries something you
     // can recognise. Asynchronous, but press comes well before the drag
     // threshold; if it is not ready the drag simply has no image.
-    onPressed: {
+    onPressed: function(event) {
       mouse.draggedThisPress = false
+      row.rowPressed(event.modifiers)
       row.grabToImage(function(result) {
         if (result) row.Drag.imageSource = result.url
       })
@@ -170,8 +187,8 @@ Item {
     // named `; rm -rf ~` would then be a command. The array form execs
     // directly, and the leading-slash check keeps a name that starts with a
     // dash from being read as an option.
-    onClicked: function(mouse) {
-      if (mouse.button === Qt.LeftButton && !mouse.draggedThisPress) row.activated()
+    onClicked: function(event) {
+      if (event.button === Qt.LeftButton && !mouse.draggedThisPress) row.rowClicked(event.modifiers)
     }
 
     onDoubleClicked: {

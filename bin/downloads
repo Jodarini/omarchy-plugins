@@ -14,7 +14,10 @@
 #   probe DIR   how many entries, counted no further than the cap and without
 #               stat-ing anything. This is what tells QML whether attaching
 #               the model is safe.
-#   list DIR    the newest files as JSON, bounded by entries and by bytes.
+#   list DIR [QUERY]
+#               the newest files as JSON, bounded by entries and by bytes.
+#               With a query, only names holding every word of it, in any
+#               case, matched before the row cap so older matches still fit.
 
 set -uo pipefail
 
@@ -56,12 +59,13 @@ cmd_probe() {
 }
 
 cmd_list() {
-  local dir=$1
+  local dir=$1 query=${2:-}
   valid_dir "$dir" || die "not a directory"
-  DL_SCAN_CAP=$SCAN_CAP DL_ROW_CAP=$ROW_CAP python3 - "$dir" <<'PY'
+  DL_SCAN_CAP=$SCAN_CAP DL_ROW_CAP=$ROW_CAP python3 - "$dir" "$query" <<'PY'
 import json, os, sys
 
 directory = sys.argv[1]
+terms = sys.argv[2].lower().split()
 scan_cap = int(os.environ["DL_SCAN_CAP"])
 row_cap = int(os.environ["DL_ROW_CAP"])
 
@@ -76,6 +80,11 @@ try:
                 truncated = True
                 break
             scanned += 1
+            # Before the stat: a name that does not match costs nothing more.
+            if terms:
+                lower = entry.name.lower()
+                if not all(t in lower for t in terms):
+                    continue
             try:
                 if not entry.is_file(follow_symlinks=False):
                     continue
@@ -115,6 +124,6 @@ PY
 
 case "${1:-}" in
   probe) shift; cmd_probe "${1:-}" ;;
-  list)  shift; cmd_list "${1:-}" ;;
-  *) die "usage: downloads probe|list DIR" ;;
+  list)  shift; cmd_list "${1:-}" "${2:-}" ;;
+  *) die "usage: downloads probe DIR | list DIR [QUERY]" ;;
 esac

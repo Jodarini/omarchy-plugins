@@ -49,15 +49,25 @@ Singleton {
   property int hiddenCount: 0
   property int uncountedCount: 0
   property bool showAll: true
+  // What the search field holds. The field is the only thing that writes it.
+  property string query: ""
   property double now: Date.now()
-  property string draggingUrl: ""
+  // Paths of the files in the drag under way, so their rows can show it.
+  property var draggingPaths: ({})
   property bool open: false
   // The panel copy that currently owns the open window. Two monitors mean
   // two copies of the bar widget sharing this one store; only the owner may
   // hide the window or hand the popout around, or the copies start closing
   // each other.
   property var owner: null
-  property int selectedIndex: -1
+
+  // Selection, kept by path rather than by row: a rescan rebuilds `files`,
+  // and a download landing at the top shifts every row down one. The cursor
+  // is the row the keyboard is on; the anchor is where a Shift range starts.
+  property var selection: ({})
+  readonly property int selectionCount: Object.keys(root.selection).length
+  property string anchorPath: ""
+  property int cursorIndex: -1
 
   readonly property int maxRows: 200
   readonly property int maxScan: 2000
@@ -72,15 +82,34 @@ Singleton {
   }
 
   function show() {
+    // Every opening starts from the whole list, in the list keys, rather
+    // than from wherever the last search left off.
+    searchField.text = ""
+    searchField.focus = false
     root.rescan()
     root.open = true
-    root.selectedIndex = 0
+    root.selectOnly(0)
   }
   function hide() { root.open = false }
   function toggle() { root.open ? root.hide() : root.show() }
 
   function isPartial(name) {
     return /\.(crdownload|part|partial|download|tmp|opdownload)$/i.test(String(name))
+  }
+
+  // Every word of the query has to appear somewhere in the name, in any
+  // order and any case, so "inv 2026" finds "Invoice-March-2026.pdf".
+  // A function rather than a binding: the scans run from onQueryChanged,
+  // and a binding on `query` may not have caught up by then.
+  function queryTerms() {
+    return root.query.toLowerCase().split(/\s+/).filter(function(t) { return t !== "" })
+  }
+
+  function matchesTerms(name, terms) {
+    var lower = String(name).toLowerCase()
+    for (var i = 0; i < terms.length; i++)
+      if (lower.indexOf(terms[i]) < 0) return false
+    return true
   }
 
   function suffixOf(name) {
@@ -131,6 +160,7 @@ Singleton {
     var total = 0
     var skipped = 0
     var cutoff = root.now - root.freshMinutes * 60000
+    var terms = root.queryTerms()
 
     var count = folderModel.count
     var scan = Math.min(count, root.maxScan)
@@ -147,6 +177,7 @@ Singleton {
       if (isFresh) fresh++
 
       if (!root.showAll && !isFresh) continue
+      if (!root.matchesTerms(name, terms)) continue
       if (out.length >= root.maxRows) { skipped++; continue }
 
       out.push({
@@ -159,7 +190,7 @@ Singleton {
       })
     }
 
-    root.files = out
+    root.setFiles(out)
     root.freshCount = fresh
     root.totalCount = total
     root.hiddenCount = skipped
@@ -211,9 +242,16 @@ Singleton {
     else root.tick()
   }
 
+  // The query the helper was last sent. A polled folder is searched by the
+  // helper, before its row cap, so a match among older files still makes it
+  // back. A read that went out before the last keystroke goes again once it
+  // is done; see listProc.
+  property string listQuery: ""
+
   function readViaHelper() {
     if (listProc.running) return
-    listProc.command = [root.helper, "list", root.folderPath]
+    root.listQuery = root.query
+    listProc.command = [root.helper, "list", root.folderPath, root.query]
     listProc.running = true
   }
 
@@ -237,6 +275,9 @@ Singleton {
     var total = 0
     var skipped = 0
     var cutoff = root.now - root.freshMinutes * 60000
+    // The helper has already searched, but maybe for an older query; this
+    // keeps the rows true to the field until the read that follows it lands.
+    var terms = root.queryTerms()
 
     for (var i = 0; i < data.files.length; i++) {
       var f = data.files[i]
@@ -250,6 +291,7 @@ Singleton {
       if (isFresh) fresh++
 
       if (!root.showAll && !isFresh) continue
+      if (!root.matchesTerms(name, terms)) continue
       if (out.length >= root.maxRows) { skipped++; continue }
 
       out.push({
@@ -262,11 +304,35 @@ Singleton {
       })
     }
 
-    root.files = out
+    root.setFiles(out)
     root.freshCount = fresh
     root.totalCount = total
     root.hiddenCount = skipped
     root.uncountedCount = Number(data.hidden) || 0
+  }
+
+  // Every rescan hands over a fresh `files`. Keep the cursor on the file it
+  // was on and drop selected files that are gone or filtered out, so nothing
+  // invisible gets opened or dragged. One exception: sitting on the newest
+  // file with nothing else picked follows the top of the list, so a download
+  // that lands while the window is open is still the one Enter opens.
+  function setFiles(out) {
+    var prev = root.files[root.cursorIndex]
+    var followTop = !prev
+      || (root.cursorIndex === 0 && root.selectionCount === 1 && root.isSelected(prev.path))
+    root.files = out
+    if (followTop) { root.selectOnly(0); return }
+
+    var at = ({})
+    for (var i = 0; i < out.length; i++) at[out[i].path] = i
+    var kept = ({})
+    var dropped = false
+    for (var p in root.selection) {
+      if (p in at) kept[p] = true
+      else dropped = true
+    }
+    if (dropped) root.selection = kept
+    root.cursorIndex = (prev.path in at) ? at[prev.path] : Math.min(root.cursorIndex, out.length - 1)
   }
 
   function scheduleTick() { coalesce.restart() }
@@ -284,11 +350,105 @@ Singleton {
   }
 
   function openSelected() {
-    if (root.selectedIndex >= 0 && root.selectedIndex < root.files.length)
-      root.openFile(root.files[root.selectedIndex].path)
+    var picked = root.selectedFiles()
+    for (var i = 0; i < picked.length; i++) root.openFile(picked[i].path)
+  }
+
+  function isSelected(path) { return !!root.selection[path] }
+
+  function indexOfPath(path) {
+    for (var i = 0; i < root.files.length; i++)
+      if (root.files[i].path === path) return i
+    return -1
+  }
+
+  // In list order, not the order they were picked, so a drop or a batch
+  // open sees them newest first like the window does.
+  function selectedFiles() {
+    var out = []
+    for (var i = 0; i < root.files.length; i++)
+      if (root.selection[root.files[i].path]) out.push(root.files[i])
+    return out
+  }
+
+  function selectOnly(index) {
+    var f = root.files[index]
+    var next = ({})
+    if (f) next[f.path] = true
+    root.selection = next
+    root.anchorPath = f ? f.path : ""
+    root.cursorIndex = f ? index : -1
+  }
+
+  function toggleAt(index) {
+    var f = root.files[index]
+    if (!f) return
+    var next = Object.assign({}, root.selection)
+    if (next[f.path]) delete next[f.path]
+    else next[f.path] = true
+    root.selection = next
+    root.anchorPath = f.path
+    root.cursorIndex = index
+  }
+
+  // From the anchor to `index`, replacing the selection, or adding to it
+  // when Ctrl is held too. The anchor stays put, so a second Shift+click
+  // re-pivots around the same row the way file managers do.
+  function selectRange(index, additive) {
+    if (!root.files[index]) return
+    var from = root.indexOfPath(root.anchorPath)
+    if (from < 0) { from = index; root.anchorPath = root.files[index].path }
+    var next = additive ? Object.assign({}, root.selection) : ({})
+    for (var i = Math.min(from, index); i <= Math.max(from, index); i++)
+      next[root.files[i].path] = true
+    root.selection = next
+    root.cursorIndex = index
+  }
+
+  function selectAll() {
+    var next = ({})
+    for (var i = 0; i < root.files.length; i++) next[root.files[i].path] = true
+    root.selection = next
+  }
+
+  // A plain press outside the selection selects that row on the spot, so
+  // dragging it drags just it. A plain press inside the selection waits for
+  // the release, so the whole selection can be dragged out together.
+  function pressRow(index, modifiers) {
+    if (modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) return
+    var f = root.files[index]
+    if (f && !root.isSelected(f.path)) root.selectOnly(index)
+  }
+
+  function clickRow(index, modifiers) {
+    if (modifiers & Qt.ShiftModifier) root.selectRange(index, !!(modifiers & Qt.ControlModifier))
+    else if (modifiers & Qt.ControlModifier) root.toggleAt(index)
+    else root.selectOnly(index)
+  }
+
+  // j/k and the arrows move the cursor and select what lands under it,
+  // wrapping at the ends. With Shift they stretch the selection from the
+  // anchor instead, and stop at the ends: wrapping would flip the range.
+  function moveCursor(step, extend) {
+    var n = root.files.length
+    if (n === 0) return
+    if (extend) root.selectRange(Math.max(0, Math.min(n - 1, root.cursorIndex + step)), false)
+    else root.selectOnly(((root.cursorIndex + step) % n + n) % n)
   }
 
   onShowAllChanged: root.tick()
+
+  // A new query starts from its best match, the newest file that fits:
+  // selecting the top row first lets setFiles carry that over to the new
+  // list. A watched folder is already in memory, so it is filtered on every
+  // keystroke. A polled one goes back to the helper, a process per read, so
+  // a burst of typing settles first.
+  onQueryChanged: {
+    root.selectOnly(0)
+    if (root.polling) root.scheduleTick()
+    else root.tick()
+    list.positionViewAtBeginning()
+  }
 
   onFolderUrlChanged: {
     root.polling = false
@@ -320,6 +480,9 @@ Singleton {
     id: listProc
     stdout: StdioCollector {
       onStreamFinished: root.applyPayload(text)
+    }
+    onRunningChanged: {
+      if (!running && root.polling && root.listQuery !== root.query) root.readViaHelper()
     }
   }
 
@@ -363,10 +526,10 @@ Singleton {
       if (!visible && root.open) {
         root.open = false
       } else if (visible) {
-        root.selectedIndex = 0
+        root.selectOnly(0)
         Qt.callLater(function() {
           if (win.visible) {
-            list.positionViewAtIndex(Math.max(0, root.selectedIndex), ListView.Beginning)
+            list.positionViewAtIndex(Math.max(0, root.cursorIndex), ListView.Beginning)
             Quickshell.execDetached(["hyprctl", "dispatch", "focuswindow", "title:^Downloads$"])
           }
         })
@@ -374,22 +537,47 @@ Singleton {
     }
 
     FocusScope {
+      id: keys
       anchors.fill: parent
       focus: true
       Keys.priority: Keys.BeforeItem
 
-      Keys.onEscapePressed: root.hide()
+      function follow() {
+        if (root.cursorIndex >= 0) list.positionViewAtIndex(root.cursorIndex, ListView.Contain)
+      }
+
+      // Back from the search field to the list keys with the filter kept, so
+      // j/k, Shift and Ctrl+A work on just the matches. Clearing the field's
+      // focus first matters: forcing focus onto the scope alone would hand it
+      // straight back to the field, the scope's last focused child.
+      function leaveSearch() {
+        searchField.focus = false
+        keys.forceActiveFocus()
+      }
+
+      // One layer per press: a search goes first, then the window.
+      Keys.onEscapePressed: {
+        if (root.query !== "") searchField.text = ""
+        else root.hide()
+      }
       Keys.onReturnPressed: root.openSelected()
       Keys.onEnterPressed: root.openSelected()
       Keys.onPressed: function(event) {
-        if (event.text === "j") {
-          root.selectedIndex = (root.selectedIndex + 1) % Math.max(1, root.files.length)
-          list.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+        var shift = !!(event.modifiers & Qt.ShiftModifier)
+        if (event.text === "/" || (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier))) {
+          searchField.forceActiveFocus()
+          searchField.selectAll()
           event.accepted = true
-        } else if (event.text === "k") {
-          root.selectedIndex = root.files.length === 0 ? 0
-            : (root.selectedIndex - 1 + root.files.length) % root.files.length
-          list.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+        } else if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier)) {
+          root.selectAll()
+          event.accepted = true
+        } else if (event.text === "j" || event.text === "J" || event.key === Qt.Key_Down) {
+          root.moveCursor(1, shift)
+          keys.follow()
+          event.accepted = true
+        } else if (event.text === "k" || event.text === "K" || event.key === Qt.Key_Up) {
+          root.moveCursor(-1, shift)
+          keys.follow()
           event.accepted = true
         } else if (event.text === "H") {
           root.showAll = false
@@ -399,15 +587,6 @@ Singleton {
           event.accepted = true
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
           root.openSelected()
-          event.accepted = true
-        } else if (event.key === Qt.Key_Down) {
-          root.selectedIndex = (root.selectedIndex + 1) % Math.max(1, root.files.length)
-          list.positionViewAtIndex(root.selectedIndex, ListView.Contain)
-          event.accepted = true
-        } else if (event.key === Qt.Key_Up) {
-          root.selectedIndex = root.files.length === 0 ? 0
-            : (root.selectedIndex - 1 + root.files.length) % root.files.length
-          list.positionViewAtIndex(root.selectedIndex, ListView.Contain)
           event.accepted = true
         }
       }
@@ -441,6 +620,33 @@ Singleton {
             font.pixelSize: Style.font.subtitle
             renderType: Text.NativeRendering
             color: Color.foreground
+          }
+
+          // Search by name. While it has focus, letters are text, so the
+          // list's letter keys (j/k, H/L) are off and the arrows stand in.
+          TextField {
+            id: searchField
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            placeholderText: "Search by name"
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            verticalPadding: Style.space(4)
+            onTextChanged: root.query = text
+
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
+                root.moveCursor(event.key === Qt.Key_Down ? 1 : -1, !!(event.modifiers & Qt.ShiftModifier))
+                keys.follow()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.openSelected()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Escape) {
+                keys.leaveSearch()
+                event.accepted = true
+              }
+            }
           }
 
           // A plain segmented filter in place of the animated ButtonGroup.
@@ -507,24 +713,24 @@ Singleton {
           model: root.files
           boundsBehavior: Flickable.StopAtBounds
           keyNavigationWraps: true
-          currentIndex: root.selectedIndex
+          currentIndex: root.cursorIndex
           highlightMoveDuration: 0
 
           delegate: DownloadRow {
             required property var modelData
+            required property int index
             width: list.width
             store: root
             file: modelData || ({})
-            selected: !!modelData
-              && root.selectedIndex >= 0 && root.selectedIndex < root.files.length
-              && !!(root.files[root.selectedIndex])
-              && modelData.path === root.files[root.selectedIndex].path
-            onActivated: {
-              var p = modelData ? String(modelData.path || "") : ""
-              var files = root.files
-              for (var i = 0; i < files.length; i++)
-                if (files[i] && String(files[i].path || "") === p) { root.selectedIndex = i; break }
+            selected: !!modelData && root.isSelected(modelData.path)
+            current: index === root.cursorIndex
+            // Picking a row is done typing: the keys go back to the list,
+            // so j/k after a click move rather than land in the query.
+            onRowPressed: function(modifiers) {
+              if (searchField.activeFocus) keys.leaveSearch()
+              root.pressRow(index, modifiers)
             }
+            onRowClicked: function(modifiers) { root.clickRow(index, modifiers) }
           }
         }
 
@@ -536,11 +742,14 @@ Singleton {
           verticalAlignment: Text.AlignVCenter
           wrapMode: Text.WordWrap
           textFormat: Text.PlainText
-          text: root.showAll
-            ? "Nothing in " + root.displayPath
-            : "Nothing in the last " + root.freshMinutes + " minutes.\n"
-              + (root.uncountedCount > 0 ? "More than " : "")
-              + root.totalCount + " files in the folder."
+          text: root.query.trim() !== ""
+            ? "No names match “" + root.query.trim() + "”"
+              + (root.showAll ? "" : " in the last " + root.freshMinutes + " minutes")
+            : root.showAll
+              ? "Nothing in " + root.displayPath
+              : "Nothing in the last " + root.freshMinutes + " minutes.\n"
+                + (root.uncountedCount > 0 ? "More than " : "")
+                + root.totalCount + " files in the folder."
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
           renderType: Text.NativeRendering
@@ -572,7 +781,11 @@ Singleton {
           visible: root.files.length > 0
           horizontalAlignment: Text.AlignHCenter
           textFormat: Text.PlainText
-          text: "j/k navigate · Enter open · H/L filter"
+          text: root.selectionCount > 1
+            ? root.selectionCount + " selected · Enter open all · drag to take all"
+            : searchField.activeFocus
+              ? "↑/↓ move · Enter open · Esc back to the list"
+              : "j/k move · Shift+j/k select · Enter open · H/L filter · / search"
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           renderType: Text.NativeRendering

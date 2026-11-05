@@ -1,2 +1,3 @@
 singleton DownloadsStore 1.0 DownloadsStore.qml
 DownloadRow 1.0 DownloadRow.qml
+SegFilterChip 1.0 SegFilterChip.qml
