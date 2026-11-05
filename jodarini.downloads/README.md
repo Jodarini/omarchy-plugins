@@ -76,13 +76,19 @@ o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jodarini.downloads"
 | Click the bar button | open and close the list |
 | Right-click the bar button | open the folder in your file manager |
 | Click a row | select it |
-| Drag a row | hand the file to whatever is under the cursor |
+| `Ctrl`+click a row | add it to the selection, or take it out |
+| `Shift`+click a row | select everything from the last clicked row to this one (`Ctrl`+`Shift` adds the range instead) |
+| Drag a row | hand the file to whatever is under the cursor; drag a selected row to hand over the whole selection |
 | Double-click a row | open the file |
 | `Last N min` / `All` | show only what just arrived, or the whole folder |
+| Type in the search field | show only files whose name holds every word typed, in any order and any case |
+| `/` or `Ctrl`+`F` | jump to the search field; `↑` / `↓` move the selection and `Enter` opens it while you type |
 | `j` / `k` or arrow keys | move the selection down / up |
-| `Enter` | open the selected file |
+| `Shift` + `j` / `k` or arrow keys | stretch the selection down / up |
+| `Ctrl`+`A` | select every file in the list |
+| `Enter` | open the selected files |
 | `H` / `L` | switch between the two filters |
-| `Esc` | close |
+| `Esc` | leave the search field (the filter stays), then clear the search, then close |
 
 ## Settings
 
